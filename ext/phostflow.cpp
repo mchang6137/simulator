@@ -8,6 +8,7 @@
 extern void add_to_event_queue(Event* ev);
 extern double get_current_time();
 extern DCExpParams params;
+extern uint32_t duplicated_packets_received;
 
 PHostFlow::PHostFlow(uint32_t id, double start_time, uint32_t size, Host *s, Host *d)
     : Flow(id, start_time, size, s, d) {
@@ -32,7 +33,7 @@ void PHostFlow::receive(Packet* p) {
     switch (p->type) {
         // sender side
         case CAPABILITY_PACKET:
-            if (id == 7) std::cout << get_current_time() << " " << id << " " << p->seq_no <<  " got capa " << get_current_time() + params.capability_timeout * params.get_full_pkt_tran_delay() << "\n";
+            if (id == 48) std::cout << get_current_time() << " " << id << " " << p->seq_no <<  " got capa " << get_current_time() + params.capability_timeout * params.get_full_pkt_tran_delay() << "\n";
             t = new PHostToken(this, p->seq_no, get_current_time() + params.capability_timeout * params.get_full_pkt_tran_delay());
             ((PHost*) src)->received_capabilities.push(t);
 
@@ -50,11 +51,11 @@ void PHostFlow::receive(Packet* p) {
 
         // receiver side
         case RTS_PACKET:
-            if (id == 7) std::cout << get_current_time() << " " << id << " get RTS\n";
+            if (id == 48) std::cout << get_current_time() << " " << id << " get RTS\n";
             ((PHost*) dst)->start_receiving(this);
             break;
         case NORMAL_PACKET:
-            if (id == 7) std::cout << get_current_time() << " " << id << " " << p->seq_no <<  " got pkt\n";
+            if (id == 48) std::cout << get_current_time() << " " << id << " " << p->seq_no <<  " got pkt\n";
             receive_data_pkt(p);
             break;
 
@@ -80,7 +81,12 @@ void PHostFlow::receive_data_pkt(Packet* p) {
         }
     }
 
-    assert(found);
+    if (!found) {
+        //duplicated packet
+        duplicated_packets_received += 1;
+        return;
+    }
+
     remaining_packets--;
 
     // send ack if done
@@ -120,7 +126,7 @@ void PHostFlow::set_timeout(double time) {
 
 void PHostFlow::handle_timeout() {
     assert(remaining_packets > 0);
-    if (id == 7) std::cout << get_current_time() << " " << id << " timeout " << remaining_packets << " " << window.size() << "\n";
+    if (id == 48) std::cout << get_current_time() << " " << id << " timeout " << remaining_packets << " " << window.size() << "\n";
     this->timed_out = true;
     ((PHost*) dst)->active_receiving_flows.push(this);
 
