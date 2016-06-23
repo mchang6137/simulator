@@ -21,6 +21,7 @@ class PHostFlow : public Flow {
         std::vector<uint32_t> window;
         uint32_t next_seq_no;
         uint32_t capabilities_sent;
+        bool sent_ack;
         
         bool timed_out;
         uint32_t timeout_seqno;

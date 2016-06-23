@@ -11,6 +11,8 @@
 #include "schedulinghost.h"
 #include "custompriorityqueue.h"
 
+#include "phostflow.h"
+
 class PHost;
 
 class PHostToken {
@@ -50,7 +52,6 @@ class PHost : public SchedulingHost {
 
         // sender side
         CustomPriorityQueue<PHostToken*, std::vector<PHostToken*>, PHostFlowComparator> received_capabilities;
-        virtual void start(Flow* f);
         virtual void send(); // called by HostProcessingEvent
 
         // receiver side

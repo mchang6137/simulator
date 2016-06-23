@@ -1,3 +1,5 @@
+#include "phost.h"
+
 #include <assert.h>
 #include <stdlib.h>
 
@@ -6,8 +8,6 @@
 #include "../coresim/packet.h"
 #include "../coresim/debug.h"
 
-#include "phostflow.h"
-#include "phost.h"
 #include "factory.h"
 
 #include "../run/params.h"
@@ -65,36 +65,42 @@ PHost::PHost(uint32_t id, double rate, uint32_t queue_type) : SchedulingHost(id,
 }
 
 // sender side
-void PHost::start(Flow* f) {
-    // send RTS
-    Packet* p = new RTSCTS(true, get_current_time(), f, params.hdr_size, f->src, f->dst);
-    add_to_event_queue(new PacketQueuingEvent(get_current_time(), p, this->queue));
-
-    if (this->host_proc_event == NULL || this->host_proc_event->cancelled) {
-        this->host_proc_event = new HostProcessingEvent(get_current_time(), this);
-        add_to_event_queue(this->host_proc_event);
-    }
-}
-
 void PHost::send() {
-    PHostToken* t;
-    double to = get_current_time() + 1.0;
-    while (to > get_current_time()) {
-        t = received_capabilities.top();
-        received_capabilities.pop();
-        to = t->timeout;
+    PHostToken* t = NULL;
+    double to = 0;
+
+    while (to < get_current_time()) {
+        if (received_capabilities.size() > 0) {
+            t = received_capabilities.top();
+            received_capabilities.pop();
+            to = t->timeout;
+        } 
+        else {
+            return;
+        }
     }
 
-    t->flow->send(t->seqno);
+    if (t != NULL) {
+        assert(t->flow->src == this);
+
+        Packet *p = new Packet(
+                get_current_time(), 
+                t->flow, 
+                t->seqno, 
+                1, 
+                params.mss + params.hdr_size, 
+                t->flow->src, 
+                t->flow->dst
+                );
+        t->flow->total_pkt_sent++;
+
+        add_to_event_queue(new PacketQueuingEvent(get_current_time(), p, this->queue));
+    }
 
     if (this->host_proc_event == NULL || this->host_proc_event->cancelled) {
         this->host_proc_event = new HostProcessingEvent(
                 get_current_time() 
-                + this->queue->get_transmission_delay(
-                    params.mss 
-                    + params.hdr_size 
-                    - INFINITESIMAL_TIME
-                    ), 
+                + params.get_full_pkt_tran_delay(), 
                 this
             );
         add_to_event_queue(this->host_proc_event);
@@ -112,19 +118,24 @@ void PHost::start_receiving(Flow* f) {
 }
 
 void PHost::send_capability() {
-    Packet* capa;
-    PHostFlow* f;
-    while(1) {
+    Packet* capa = NULL;
+    PHostFlow* f = NULL;
+    std::vector<PHostFlow*> passed_over;
+    while(!active_receiving_flows.empty()) {
         f = active_receiving_flows.top();
         if (f->timed_out && f->window.size() >= params.capability_window) {
+            assert(!f->window.empty());
             // timed out, retx old packets
             capa = new Packet(get_current_time(), f, f->window[f->timeout_seqno], 0, params.hdr_size, f->dst, f->src);
             capa->type = CAPABILITY_PACKET;
-            f->timeout_seqno++;
+            f->timeout_seqno = (f->timeout_seqno + 1) % f->window.size();
         }
-        else if (f->window.size() >= params.capability_window) {
+        else if (f->remaining_packets <= f->window.size() || f->window.size() >= params.capability_window || f->window.size() >= f->size_in_pkt) {
             // wait for a timeout or a received packet
-            assert(f->retx_event != NULL);
+            f->set_timeout(
+                get_current_time() 
+                + params.capability_window_timeout * params.get_full_pkt_tran_delay()
+            );
             active_receiving_flows.pop();
             continue;
         }
@@ -139,21 +150,23 @@ void PHost::send_capability() {
         if (capa != NULL) {
             f->set_timeout(
                 get_current_time() 
-                + params.capability_window_timeout 
-                * this->queue->get_transmission_delay(params.mss + params.hdr_size)
+                + params.capability_window_timeout * params.get_full_pkt_tran_delay()
             );
             add_to_event_queue(new PacketQueuingEvent(get_current_time(), capa, this->queue));
             
-            double td = get_current_time() 
-                        + this->queue->get_transmission_delay(
-                            params.mss 
-                            + params.hdr_size 
-                            - INFINITESIMAL_TIME
-                            ); 
- 
-            capa_proc_evt = new PHostTokenProcessingEvent(get_current_time() + td, this);
+            capa_proc_evt = new PHostTokenProcessingEvent(get_current_time() + params.get_full_pkt_tran_delay(), this);
             add_to_event_queue(capa_proc_evt);
             break;
+        } 
+        else {
+            active_receiving_flows.pop();
+            passed_over.push_back(f);
         }
+    }
+
+    while(!passed_over.empty()) {
+        PHostFlow* f = passed_over.back();
+        passed_over.pop_back();
+        active_receiving_flows.push(f);
     }
 }
