@@ -29,6 +29,8 @@
 #define FLOW_CREATION_EVENT 8
 #define LOGGING 9
 
+#define MULTICAST_GROUP_SIZE 15
+
 class Event {
     public:
         Event(uint32_t type, double time);
@@ -74,14 +76,14 @@ class FlowCreationForInitializationEvent : public Event {
         FlowCreationForInitializationEvent(
                 double time, 
                 Host *src, 
-                Host *dst,
+                Host* dst[MULTICAST_GROUP_SIZE],
                 EmpiricalRandomVariable *nv_bytes,
                 RandomVariable *nv_intarr
                 );
         ~FlowCreationForInitializationEvent();
         void process_event();
         Host *src;
-        Host *dst;
+        Host* dst[MULTICAST_GROUP_SIZE];
         EmpiricalRandomVariable *nv_bytes;
         RandomVariable *nv_intarr;
 };

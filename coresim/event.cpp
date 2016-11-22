@@ -67,7 +67,7 @@ Event::~Event() {
 FlowCreationForInitializationEvent::FlowCreationForInitializationEvent(
         double time, 
         Host *src, 
-        Host *dst,
+        Host * dst[MULTICAST_GROUP_SIZE],
         EmpiricalRandomVariable *nv_bytes, 
         RandomVariable *nv_intarr
     ) : Event(FLOW_CREATION_EVENT, time) {
