@@ -72,7 +72,7 @@ FlowCreationForInitializationEvent::FlowCreationForInitializationEvent(
         RandomVariable *nv_intarr
     ) : Event(FLOW_CREATION_EVENT, time) {
     this->src = src;
-    this->dst = dst;
+    std::copy(dst, MULTICAST_GROUP_SIZE, this->dst);
     this->nv_bytes = nv_bytes;
     this->nv_intarr = nv_intarr;
 }
@@ -83,7 +83,10 @@ void FlowCreationForInitializationEvent::process_event() {
     uint32_t id = flows_to_schedule.size();
     uint64_t nvVal = (nv_bytes->value() + 0.5); // truncate(val + 0.5) equivalent to round to nearest int
     if (nvVal > 2500000) {
-        std::cout << "Giant Flow! event.cpp::FlowCreation:" << 1000000.0 * time << " Generating new flow " << id << " of size " << (nvVal*1460) << " between " << src->id << " " << dst->id << "\n";
+      std::cout << "Giant Flow! event.cpp::FlowCreation:" << 1000000.0 * time << " Generating new flow " << id << " of size " << (nvVal*1460) << " between " << src->id << " ";
+      for(int i = 0; i < sizeof(dst); i++){
+	std::cout << dst[i] -> id << "\n";
+      }
         nvVal = 2500000;
     }
     uint32_t size = (uint32_t) nvVal * 1460;
@@ -374,7 +377,6 @@ void FlowFinishedEvent::process_event() {
             << flow->id << " "
             << flow->size << " "
             << flow->src->id << " "
-            << flow->dst->id << " "
             << 1000000 * flow->start_time << " "
             << 1000000 * flow->finish_time << " "
             << 1000000.0 * flow->flow_completion_time << " "
@@ -384,6 +386,9 @@ void FlowFinishedEvent::process_event() {
             << flow->data_pkt_drop << "/" << flow->ack_pkt_drop << "/" << flow->pkt_drop << " "
             << 1000000 * (flow->first_byte_send_time - flow->start_time) << " "
             << std::endl;
+	for(int i = 0; i < sizeof(flow->dst); i++){
+	  std::cout << flow -> dst[i].id << std::endl;
+	}
         std::cout << std::setprecision(9) << std::fixed;
     }
 }
